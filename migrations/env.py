@@ -19,7 +19,8 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from src.database import Base, DATABASE_URL
-from src.model.post import Post  # zaroori — warna table detect nahi hogi
+from src.model.post import Post  # noqa: F401 — register with metadata
+from src.model.user import User  # noqa: F401 — register with metadata
 
 target_metadata = Base.metadata
 

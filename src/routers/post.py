@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.schema.post import PostCreate, PostListResponse, PostResponse
 from src.services.post import create_post as create_post_service
-from src.services.post import get_all_post_service
+from src.services.post import get_all_post_service, delete_post_service, update_post_service
 
 router = APIRouter()
 
@@ -21,3 +21,19 @@ def get_all_post(
     limit: int = Query(default=10, ge=1, le=100),
 ):
     return get_all_post_service(db, page, limit)
+
+@router.put("/", response_model=PostCreate)
+def update_post(
+    id:int ,
+    post: PostCreate,
+    db:Session = Depends(get_db )
+   
+):
+    return update_post_service(db, post, id)
+
+@router.delete('/')
+def delete_post(
+    db:Session = Depends(get_db),
+    id:int = Query()
+):
+    return delete_post_service(db,id)
