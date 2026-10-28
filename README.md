@@ -1,68 +1,66 @@
-# Python Task Management
+# Python Practice API
 
-FastAPI practice project with PostgreSQL connection, SQLAlchemy models, and Alembic migrations.
+FastAPI backend with PostgreSQL, SQLAlchemy, Alembic migrations, JWT auth, and a layered (router → service → model) structure.
 
-## What's done so far
+## Features
 
-- FastAPI app with task/post routes (`src/main.py`)
-- Pydantic schemas: `PostCreate`, `PostResponse` (`src/schema/post.py`)
-- SQLAlchemy model: `Post` → table `posts` (`src/model/post.py`)
-- PostgreSQL connection via `.env` (`src/database.py`)
-- DB connection test script (`test.py`) — working
-- Alembic setup (`alembic.ini`, `migrations/`)
-- Migration created: `migrations/versions/f9624c442364_add_post_table.py`
-
-## Not done yet
-
-- API routes still use an **in-memory** `tasks` list
-- Routes are not yet wired to PostgreSQL (`get_db` + `Post` model)
+- User registration & login with Argon2 password hashing
+- JWT access tokens (`HTTPBearer` — paste token in Swagger Authorize)
+- Protected routes via `get_current_user` dependency
+- Posts CRUD with pagination
+- Alembic migrations for schema changes
 
 ## Project structure
 
 ```
 python_project/
-├── app.py                 # Uvicorn entrypoint
-├── test.py                # DB connection test
-├── .env                   # Postgres + ImageKit credentials (not committed)
+├── app.py                      # Uvicorn entrypoint
+├── test.py                     # DB connection smoke test
+├── .env                        # secrets (not committed)
 ├── alembic.ini
 ├── pyproject.toml
 ├── migrations/
 │   ├── env.py
-│   └── versions/          # migration files
+│   └── versions/
 └── src/
-    ├── main.py            # FastAPI routes
-    ├── database.py        # engine, session, get_db
-    ├── model/post.py      # SQLAlchemy Post model
-    └── schema/post.py     # Pydantic schemas
+    ├── main.py                 # FastAPI app + router mounts
+    ├── database.py             # engine, session, get_db
+    ├── dependencies/
+    │   └── auth.py             # get_current_user (HTTPBearer)
+    ├── routers/
+    │   ├── auth.py             # /auth/login
+    │   ├── user.py             # /users register + /me
+    │   └── post.py             # /posts CRUD
+    ├── services/               # business logic
+    ├── model/                  # SQLAlchemy models (User, Post)
+    ├── schema/                 # Pydantic request/response schemas
+    └── utils/
+        ├── hash_password.py
+        └── token.py            # JWT create / verify
 ```
 
 ## Requirements
 
 - Python 3.9+
 - PostgreSQL running locally
-- `uv` or a venv with project dependencies
+- `uv` (recommended) or a venv with project deps
 
 ## Setup
 
-### 1. Clone & enter project
+### 1. Enter project
 
 ```bash
 cd python_project
 ```
 
-### 2. Create virtualenv & install deps
+### 2. Install dependencies
 
 ```bash
-# if using uv
 uv sync
-
-# or activate existing venv
-source .venv/bin/activate
+# or: source .venv/bin/activate && pip install -e .
 ```
 
 ### 3. Configure `.env`
-
-Create/update `.env` in project root:
 
 ```env
 POSTGRES_HOST=localhost
@@ -70,34 +68,30 @@ POSTGRES_PORT=5432
 POSTGRES_USER=your_user
 POSTGRES_PASSWORD=your_password
 POSTGRES_DB=python_practice
-POSTGRES_SSL=false
+
+SECRET_KEY=your-long-random-secret
+ALGORITHM=HS256
+TOKEN_EXPIRE_TIME=60
 ```
 
-### 4. Create Postgres database (once)
+`TOKEN_EXPIRE_TIME` is in **minutes**.
+
+### 4. Create database (once)
 
 ```bash
 createdb python_practice
-# or via psql:
-# CREATE DATABASE python_practice;
 ```
 
-### 5. Run migrations (create tables)
+### 5. Run migrations
 
 ```bash
 alembic upgrade head
 ```
 
-### 6. Test DB connection
+### 6. (Optional) Test DB connection
 
 ```bash
 python3 test.py
-```
-
-Expected:
-
-```
-Database connected successfully
-PostgreSQL ...
 ```
 
 ## Run the API
@@ -106,25 +100,69 @@ PostgreSQL ...
 python3 app.py
 ```
 
-Server starts at: [http://127.0.0.1:8080](http://127.0.0.1:8080)
-
-- Swagger docs: [http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)
+- API: [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- Swagger: [http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)
 - ReDoc: [http://127.0.0.1:8080/redoc](http://127.0.0.1:8080/redoc)
 
-## Current API endpoints
+## Auth flow (Swagger)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/get-all-posts?limit=10` | List posts (memory) |
-| `GET` | `/get-single-post/{id}` | Get one post (memory) |
-| `POST` | `/add-to-tasks` | Create post (memory) |
-
-`POST` body example:
+1. `POST /users/` — register (returns `access_token`)
+2. Or `POST /auth/login` with JSON:
 
 ```json
 {
-  "title": "Learn PostgreSQL",
-  "description": "Connect FastAPI to Postgres"
+  "email": "you@example.com",
+  "password": "yourpassword"
+}
+```
+
+3. Copy `access_token` from the response
+4. Click **Authorize** in Swagger → paste token only (no `Bearer ` prefix)
+5. Call protected routes (e.g. `GET /users/me`)
+
+## API endpoints
+
+### Auth
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/auth/login` | No | Login, returns JWT |
+
+### Users
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/users/` | No | Register user |
+| `GET` | `/users/me` | Yes | Current user from token |
+
+### Posts
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/posts/?page=1&limit=10` | No | List posts (paginated) |
+| `POST` | `/posts/` | No* | Create post |
+| `PUT` | `/posts/?id={id}` | No* | Update post |
+| `DELETE` | `/posts/?id={id}` | No* | Delete post |
+
+\* Posts write routes are not yet protected; wire `Depends(get_current_user)` when ready.
+
+**Register body:**
+
+```json
+{
+  "userName": "daniyal",
+  "email": "daniyal@gmail.com",
+  "phone_number": "+923001234567",
+  "password": "secret123"
+}
+```
+
+**Create post body:**
+
+```json
+{
+  "title": "Learn FastAPI auth",
+  "description": "JWT + HTTPBearer dependency"
 }
 ```
 
@@ -137,10 +175,17 @@ alembic revision --autogenerate -m "describe change"
 # apply migrations
 alembic upgrade head
 
-# check posts table
-psql -U your_user -d python_practice -c '\d posts'
+# inspect tables
+psql -U your_user -d python_practice -c '\dt'
 ```
 
-## Next step
+## Stack
 
-Wire `src/main.py` routes to PostgreSQL using `Depends(get_db)` and the `Post` model instead of the in-memory `tasks` list.
+| Layer | Tech |
+|-------|------|
+| API | FastAPI + Uvicorn |
+| DB | PostgreSQL + SQLAlchemy + psycopg |
+| Migrations | Alembic |
+| Auth | PyJWT + HTTPBearer |
+| Passwords | pwdlib (Argon2) |
+| Validation | Pydantic v2 |
