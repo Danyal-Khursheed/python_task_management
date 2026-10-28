@@ -1,20 +1,20 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from src.utils.token import verify_access_token
 
 from src.database import get_db
-from src.model.user import User
+from src.model.user import User 
 
-security = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        db: Session = Depends(get_db),
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
     ):
-        token = credentials.credentials
+        
         payload = verify_access_token(token)
         user_id = payload.get("sub")
 
@@ -22,12 +22,6 @@ def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload"
-        )
-
-        credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
  
         )
 
