@@ -7,3 +7,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     phone_number: PhoneNumber
     password: SecretStr = Field(min_length=8, max_length=128)
+
+
+class Login(BaseModel):
+    email:EmailStr
+    password: SecretStr = Field(min_length=8, max_length=128)
